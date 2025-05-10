@@ -19,6 +19,8 @@ def book_timeslot(event_description, booking_time, input_email):
     # The file token.pickle stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
     # time.
+
+    # здесь в репозитории нет нескольких вспомогательных файлов, без них код не будет полностью работать
     if os.path.exists('token.pickle'):
         with open('token.pickle', 'rb') as token:
             creds = pickle.load(token)
