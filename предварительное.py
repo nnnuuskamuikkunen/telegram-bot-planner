@@ -49,7 +49,7 @@ async def send_reminder(user_id: int, task_id: int):
         if task and not task.is_notified:
             await bot.send_message(
                 user_id,
-                f"🔔 Напоминание о задаче:\n\n"
+                f"Напоминание о задаче:\n\n"
                 f"{task.text}\n"
                 f"Запланировано на: {task.due_date.strftime('%d.%m.%Y %H:%M')}"
             )
@@ -77,16 +77,16 @@ async def start_bot(message: types.Message):
     )
 
 # Добавление задачи - шаг 1
-@dp.message(F.text == "📝 Добавить задачу")
+@dp.message(F.text == "Добавить задачу")
 async def add_task_step1(message: types.Message, state: FSMContext):
-    await message.answer("✏️ Введите текст задачи:")
+    await message.answer("Введите текст задачи:")
     await state.set_state(TaskStates.waiting_for_task_text)
 
 # Добавление задачи - шаг 2 (получение текста)
 @dp.message(TaskStates.waiting_for_task_text)
 async def add_task_step2(message: types.Message, state: FSMContext):
     await state.update_data(task_text=message.text)
-    await message.answer("📅 Теперь введите дату и время выполнения (формат: ДД.ММ.ГГГГ ЧЧ:ММ)")
+    await message.answer("Теперь введите дату и время выполнения (формат: ДД.ММ.ГГГГ ЧЧ:ММ)")
     await state.set_state(TaskStates.waiting_for_task_date)
 
 # Добавление задачи - шаг 3 (получение даты)
@@ -117,7 +117,7 @@ async def add_task_step3(message: types.Message, state: FSMContext):
             )
         
         await message.answer(
-            f"✅ Задача сохранена!\n"
+            f"Задача сохранена!\n"
             f"Текст: {data['task_text']}\n"
             f"Дата: {due_date.strftime('%d.%m.%Y %H:%M')}\n"
             f"ID задачи: {task.id}"
@@ -125,10 +125,10 @@ async def add_task_step3(message: types.Message, state: FSMContext):
         await state.clear()
     
     except ValueError as e:
-        await message.answer(f"❌ Ошибка: {str(e) or 'Неверный формат даты. Используйте ДД.ММ.ГГГГ ЧЧ:ММ'}")
+        await message.answer(f"Ошибка: {str(e) or 'Неверный формат даты. Используйте ДД.ММ.ГГГГ ЧЧ:ММ'}")
 
 # Просмотр задач
-@dp.message(F.text == "📋 Список задач")
+@dp.message(F.text == "Список задач")
 async def list_tasks(message: types.Message):
     async with async_session() as session:
         result = await session.execute(
@@ -143,17 +143,17 @@ async def list_tasks(message: types.Message):
     
     response = ["Ваши задачи:"]
     for task in tasks:
-        status = "🔔 (напоминание запланировано)" if not task.is_notified else "✓ (напоминание отправлено)"
+        status = "(напоминание запланировано)" if not task.is_notified else "(напоминание отправлено)"
         response.append(
-            f"📌 {task.text}\n"
-            f"⏰ {task.due_date.strftime('%d.%m.%Y %H:%M')} {status}\n"
+            f"{task.text}\n"
+            f"{task.due_date.strftime('%d.%m.%Y %H:%M')} {status}\n"
             f"ID: {task.id}"
         )
     
     await message.answer("\n\n".join(response))
 
 # Удаление задачи
-@dp.message(F.text.regexp(r'^❌ Удалить задачу (\d+)$'))
+@dp.message(F.text.regexp(r'^Удалить задачу (\d+)$'))
 async def delete_task(message: types.Message):
     task_id = int(message.text.split()[-1])
     
