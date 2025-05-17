@@ -56,7 +56,12 @@ async def show_help_handler(callback: types.CallbackQuery):
 @router.callback_query(F.data == "back_to_main")
 async def back_to_main_handler(callback: types.CallbackQuery):
     """Возвращает в главное меню"""
-    await command_start_handler(callback.message)
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Добавить заметку", callback_data="add_note")],
+        [InlineKeyboardButton(text="Мои заметки", callback_data="list_notes")],
+        [InlineKeyboardButton(text="Помощь", callback_data="show_help")]
+    ])
+    await callback.message.edit_text("главное меню", reply_markup=keyboard)
     await callback.answer()
 
 @router.callback_query(F.data == "add_note")
@@ -67,16 +72,10 @@ async def add_note_handler(callback: types.CallbackQuery):
         "<b>ЧЧ:ММ, ГГГГ-ММ-ДД, Текст заметки</b>\n\n"
         "Пример: <code>18:00, 2023-12-31, Заказать торт</code>",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Отмена", callback_data="cancel_add")]
+            [InlineKeyboardButton(text="Отмена", callback_data="back_to_main")]
         ]),
         parse_mode="HTML"
     )
-    await callback.answer()
-
-@router.callback_query(F.data == "cancel_add")
-async def cancel_add_handler(callback: types.CallbackQuery):
-    """Отменяет добавление заметки"""
-    await command_start_handler(callback.message)
     await callback.answer()
 
 
