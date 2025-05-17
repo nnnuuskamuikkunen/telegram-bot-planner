@@ -7,7 +7,7 @@ from aiogram import Bot, Dispatcher, types, F, Router
 from aiogram.filters import CommandStart, Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-from database import init_db, add_note, get_user_notes, delete_note, get_notes_for_reminders, mark_reminder_sent
+from database import init_db, add_note, get_user_notes, delete_note, get_notes_for_reminders, mark_reminder_sent, get_note_by_id
 from config import BOT_TOKEN, DATABASE_NAME # Импортируем из config.py
 
 # Включаем логирование
@@ -19,121 +19,205 @@ dp = Dispatcher()
 router = Router() # Используем Router для лучшей организации хэндлеров
 dp.include_router(router)
 
-# --- Хэндлеры команд ---
+
+
+"""хендлеры команд"""
 
 @router.message(CommandStart())
 async def command_start_handler(message: types.Message):
-    """Обработчик команды /start"""
+    """Обработчик команды /start с кнопками для управления заметками"""
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Добавить заметку", callback_data="add_note")],
+        [InlineKeyboardButton(text="Мои заметки", callback_data="list_notes")],
+        [InlineKeyboardButton(text="Помощь", callback_data="show_help")]
+    ])
+    
     await message.answer(
-        "Привет! Я бот для заметок с напоминаниями.\n\n"
-        "Чтобы добавить заметку, отправь сообщение в формате:\n"
-        "```\nЧЧ:ММ, ГГГГ-ММ-ДД, Текст заметки\n```\n"
-        "Например: `18:00, 2023-12-31, Заказать новогодний торт`\n\n"
-        "Команды:\n"
-        "/notes - Посмотреть мои заметки\n"
-        "/help - Показать это сообщение снова"
+        "Бот для управления заметками с напоминаниями\n\n"
+        "Выберите действие:",
+        reply_markup=keyboard
     )
 
-@router.message(Command("help"))
-async def command_help_handler(message: types.Message):
-    """Обработчик команды /help"""
-    await command_start_handler(message) # Просто повторяем сообщение команды /start
+@router.callback_query(F.data == "show_help")
+async def show_help_handler(callback: types.CallbackQuery):
+    """Показывает справку"""
+    await callback.message.edit_text(
+        "Справка по работе с ботом:\n\n"
+        "1. Для добавления заметки нажмите 'Добавить заметку'\n"
+        "2. Для просмотра списка заметок нажмите 'Мои заметки'\n"
+        "3. Удалять заметки можно прямо из списка\n\n"
+        "Бот автоматически напомнит о заметке в указанное время!",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Назад", callback_data="back_to_main")]
+        ])
+    )
+    await callback.answer()
 
-@router.message(Command("notes"))
-async def command_notes_handler(message: types.Message):
-    """Обработчик команды /notes: показывает заметки пользователя."""
-    user_id = message.from_user.id
-    notes = await get_user_notes(DATABASE_NAME, user_id)
+@router.callback_query(F.data == "back_to_main")
+async def back_to_main_handler(callback: types.CallbackQuery):
+    """Возвращает в главное меню"""
+    await command_start_handler(callback.message)
+    await callback.answer()
 
-    if not notes:
-        await message.answer("У вас пока нет заметок.")
-        return
+@router.callback_query(F.data == "add_note")
+async def add_note_handler(callback: types.CallbackQuery):
+    """Начинает процесс добавления заметки"""
+    await callback.message.edit_text(
+        "Введите данные заметки в формате:\n\n"
+        "<b>ЧЧ:ММ, ГГГГ-ММ-ДД, Текст заметки</b>\n\n"
+        "Пример: <code>18:00, 2023-12-31, Заказать торт</code>",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Отмена", callback_data="cancel_add")]
+        ]),
+        parse_mode="HTML"
+    )
+    await callback.answer()
 
-    response = "Ваши заметки:\n\n"
-    keyboard_buttons = []
-    for note in notes:
-        # Используем ID заметки для кнопки удаления
-        response += f"#{note['id']}: {note['note_date']} {note['note_time']} - {note['note_text']}\n"
-        keyboard_buttons.append(
-            [InlineKeyboardButton(text=f"Удалить #{note['id']}", callback_data=f"delete_{note['id']}")]
-        )
-
-    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
-    await message.answer(response, reply_markup=keyboard)
+@router.callback_query(F.data == "cancel_add")
+async def cancel_add_handler(callback: types.CallbackQuery):
+    """Отменяет добавление заметки"""
+    await command_start_handler(callback.message)
+    await callback.answer()
 
 
-# --- Хэндлер для добавления заметок ---
 
-# Паттерн для ожидаемого формата: ЧЧ:ММ, ГГГГ-ММ-ДД, Текст
+"""добавление заметок"""
+
 NOTE_FORMAT_PATTERN = re.compile(r'^(\d{2}:\d{2}),\s*(\d{4}-\d{2}-\d{2}),\s*(.+)$')
 
-@router.message() # Обрабатываем текстовые сообщения, которые не являются командами
+@router.message(F.text)
 async def handle_note_input(message: types.Message):
-    """Обрабатывает входящие текстовые сообщения как попытку добавить заметку."""
-    user_id = message.from_user.id
+    """Обрабатывает ввод заметки после нажатия кнопки добавления"""
+    # Проверяем, что пользователь начал процесс добавления заметки
+    # (можно добавить флаг в БД или кэш, что пользователь в процессе добавления)
+    
     text = message.text.strip()
-
     match = NOTE_FORMAT_PATTERN.match(text)
 
     if not match:
-        # Если формат не соответствует, возможно, это просто обычное сообщение
-        # Можно проигнорировать или добавить хэндлер для "свободного" текста,
-        # но по условию ожидается конкретный формат.
-        # Для простоты, если не совпадает с форматом заметки, не реагируем.
-        # Или можно сообщить пользователю о неправильном формате, если это нежелательное поведение.
-        await message.answer("Неверный формат заметки. Используйте: ЧЧ:ММ, ГГГГ-ММ-ДД, Текст")
+        await message.answer(
+            "Неверный формат. Используйте: ЧЧ:ММ, ГГГГ-ММ-ДД, Текст\n\n"
+            "Пример: <code>18:00, 2023-12-31, Заказать торт</code>",
+            parse_mode="HTML"
+        )
         return
 
     time_str, date_str, note_text = match.groups()
 
     try:
-        # Проверяем корректность даты и времени
         note_datetime = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
-        # Опционально: проверить, что дата и время в будущем
-        if note_datetime < datetime.now() - timedelta(minutes=1): # Небольшой запас на парсинг
-             await message.answer("Не могу добавить заметку в прошлое. Пожалуйста, укажите будущую дату и время.")
-             return
+        if note_datetime < datetime.now():
+            await message.answer("Нельзя добавить заметку в прошлом времени!")
+            return
 
+        await add_note(DATABASE_NAME, message.from_user.id, note_text, date_str, time_str)
+        
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Посмотреть все заметки", callback_data="list_notes")],
+            [InlineKeyboardButton(text="Добавить еще", callback_data="add_note")],
+            [InlineKeyboardButton(text="В главное меню", callback_data="back_to_main")]
+        ])
+        
+        await message.answer(
+            f"Заметка добавлена:\n<b>{date_str} {time_str}</b>\n{note_text}",
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
     except ValueError:
-        await message.answer("Неверный формат даты или времени. Используйте: ЧЧ:ММ, ГГГГ-ММ-ДД")
+        await message.answer("Неверный формат даты или времени!")
+
+@router.callback_query(F.data == "list_notes")
+async def list_notes_handler(callback: types.CallbackQuery):
+    """Показывает список заметок с кнопками управления"""
+    user_id = callback.from_user.id
+    notes = await get_user_notes(DATABASE_NAME, user_id)
+
+    if not notes:
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Добавить заметку", callback_data="add_note")],
+            [InlineKeyboardButton(text="В главное меню", callback_data="back_to_main")]
+        ])
+        await callback.message.edit_text(
+            "У вас пока нет заметок",
+            reply_markup=keyboard
+        )
+        await callback.answer()
         return
 
-    # Сохраняем заметку в базу данных
-    await add_note(DATABASE_NAME, user_id, note_text, date_str, time_str)
+    keyboard_buttons = []
+    for note in notes:
+        note_text_short = note['note_text'][:25] + "..." if len(note['note_text']) > 25 else note['note_text']
+        keyboard_buttons.append([
+            InlineKeyboardButton(
+                text=f"{note['note_date']}, {note['note_time']} - {note_text_short}",
+                callback_data=f"view_{note['id']}"
+            )
+        ])
+        keyboard_buttons.append([
+            InlineKeyboardButton(
+                text="Редактировать",
+                callback_data=f"edit_{note['id']}"
+            ),
+            InlineKeyboardButton(
+                text="Удалить",
+                callback_data=f"delete_{note['id']}"
+            )
+        ])
 
-    await message.answer(f"Заметка добавлена: {date_str} {time_str} - \"{note_text}\"")
+    keyboard_buttons.append([
+        InlineKeyboardButton(text="Добавить новую заметку", callback_data="add_note"),
+        InlineKeyboardButton(text="В главное меню", callback_data="back_to_main")
+    ])
 
-
-# --- Хэндлер для кнопок удаления заметок ---
+    await callback.message.edit_text(
+        "Ваши заметки:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+    )
+    await callback.answer()
 
 @router.callback_query(F.data.startswith("delete_"))
-async def callback_delete_note(callback_query: types.CallbackQuery):
-    """Обрабатывает нажатия на кнопки "Удалить заметку"."""
-    note_id_str = callback_query.data.split("_")[1]
-    user_id = callback_query.from_user.id
+async def delete_note_handler(callback: types.CallbackQuery):
+    """Удаляет заметку"""
+    note_id = int(callback.data.split("_")[1])
+    user_id = callback.from_user.id
+    
+    deleted = await delete_note(DATABASE_NAME, note_id, user_id)
+    
+    if deleted:
+        await callback.answer("Заметка удалена")
+        # Обновляем список заметок
+        await list_notes_handler(callback)
+    else:
+        await callback.answer("Не удалось удалить заметку", show_alert=True)
 
-    try:
-        note_id = int(note_id_str)
-    except ValueError:
-        await callback_query.answer("Ошибка: некорректный ID заметки.", show_alert=True)
+
+@router.callback_query(F.data.startswith("view_"))
+async def view_note_handler(callback: types.CallbackQuery):
+    """Показывает полный текст заметки"""
+    note_id = int(callback.data.split("_")[1])
+    user_id = callback.from_user.id
+    note = await get_note_by_id(DATABASE_NAME, note_id, user_id)
+    
+    if not note:
+        await callback.answer("Заметка не найдена", show_alert=True)
         return
 
-    deleted = await delete_note(DATABASE_NAME, note_id, user_id)
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Редактировать", callback_data=f"edit_{note_id}")],
+        [InlineKeyboardButton(text="Удалить", callback_data=f"delete_{note_id}")],
+        [InlineKeyboardButton(text="Назад к списку", callback_data="list_notes")]
+    ])
+    
+    await callback.message.edit_text(
+        f"Заметка от {note['note_date']} {note['note_time']}:\n\n"
+        f"{note['note_text']}",
+        reply_markup=keyboard
+    )
+    await callback.answer()
 
-    if deleted:
-        await callback_query.answer(f"Заметка #{note_id} удалена.", show_alert=True)
-        # Опционально: обновить сообщение со списком заметок
-        # Для простоты сейчас просто отвечаем всплывающим окном
-        # Можно вызвать command_notes_handler(callback_query.message)
-        # или обновить текст существующего сообщения callback_query.message.edit_text(...)
-    else:
-        await callback_query.answer(f"Ошибка при удалении заметки #{note_id}. Возможно, она уже была удалена или не существует.", show_alert=True)
-
-    await callback_query.message.edit_reply_markup(reply_markup=None) # Убираем кнопки после удаления
-    await callback_query.answer() # Важно ответить на callback Query
 
 
-# --- Задача для проверки напоминаний ---
+"""напоминания"""
 
 async def check_reminders(bot: Bot):
     """Фоновая задача для проверки и отправки напоминаний."""
@@ -160,7 +244,7 @@ async def check_reminders(bot: Bot):
             # Напоминание за 24 часа
             if not note['reminder_24h_sent'] and time_diff <= timedelta(days=1) and time_diff > timedelta(hours=1):
                 try:
-                    await bot.send_message(user_id, f"🕒 Напоминание (24 часа): \"{note_text}\" запланировано на {note_date_str} {note_time_str}")
+                    await bot.send_message(user_id, f"Напоминание (24 часа): \"{note_text}\" запланировано на {note_date_str} {note_time_str}")
                     await mark_reminder_sent(DATABASE_NAME, note_id, '24h')
                     logging.info(f"Отправлено напоминание 24h для заметки ID {note_id} пользователю {user_id}")
                 except Exception as e:
@@ -169,7 +253,7 @@ async def check_reminders(bot: Bot):
             # Напоминание за 1 час
             elif not note['reminder_1h_sent'] and time_diff <= timedelta(hours=1) and time_diff > timedelta(minutes=0):
                  try:
-                    await bot.send_message(user_id, f"⏰ Напоминание (1 час): \"{note_text}\" запланировано на {note_date_str} {note_time_str}")
+                    await bot.send_message(user_id, f"Напоминание (1 час): \"{note_text}\" запланировано на {note_date_str} {note_time_str}")
                     await mark_reminder_sent(DATABASE_NAME, note_id, '1h')
                     logging.info(f"Отправлено напоминание 1h для заметки ID {note_id} пользователю {user_id}")
                  except Exception as e:
@@ -183,7 +267,9 @@ async def check_reminders(bot: Bot):
 
         await asyncio.sleep(60) # Проверяем напоминания каждую минуту
 
-# --- Главная функция запуска ---
+
+
+"""основные команды для запуска""" 
 
 async def main():
     """Главная функция для запуска бота и фоновой задачи."""
