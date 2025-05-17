@@ -18,6 +18,10 @@ async def init_db(db_name: str):
         await db.commit()
     print("База данных инициализирована.")
 
+
+
+"""работа с заметками"""
+
 async def add_note(db_name: str, user_id: int, note_text: str, note_date: str, note_time: str):
     """Добавляет новую заметку в базу данных."""
     async with aiosqlite.connect(db_name) as db:
@@ -45,6 +49,66 @@ async def delete_note(db_name: str, note_id: int, user_id: int):
         await cursor.execute('DELETE FROM notes WHERE id = ? AND user_id = ?', (note_id, user_id))
         await db.commit()
         return cursor.rowcount > 0 # Возвращает True, если была удалена хотя бы одна строка
+    
+async def get_note_by_id(db_name: str, note_id: int, user_id: int) -> dict | None:
+    async with aiosqlite.connect(db_name) as db:
+        # Используем параметризованный запрос для безопасности
+        cursor = await db.execute(
+            """SELECT id, note_text, note_date, note_time 
+               FROM notes 
+               WHERE id = ? AND user_id = ?""",
+            (note_id, user_id)
+        )
+        row = await cursor.fetchone()
+        await cursor.close()
+        
+        if row:
+            return {
+                "id": row[0],
+                "note_text": row[1],
+                "note_date": row[2],
+                "note_time": row[3]
+            }
+        return None
+    
+async def get_notes_by_date(db_name: str, user_id: int, search_date: str) -> list[dict]:
+    """
+    Ищет заметки пользователя по указанной дате
+    Args:
+        db_name: Имя файла базы данных
+        user_id: ID пользователя
+        search_date: Дата в формате 'ГГГГ-ММ-ДД'
+    Returns:
+        Список словарей с заметками (пустой список, если ничего не найдено)
+    """
+    try:
+        async with aiosqlite.connect(db_name) as db:
+            # Ищем заметки с указанной датой
+            cursor = await db.execute(
+                """SELECT id, note_text, note_time 
+                   FROM notes 
+                   WHERE user_id = ? AND note_date = ?
+                   ORDER BY note_time""",
+                (user_id, search_date))
+            
+            notes = []
+            async for row in cursor:
+                notes.append({
+                    "id": row[0],
+                    "note_text": row[1],
+                    "note_time": row[2]
+                })
+            
+            await cursor.close()
+            return notes
+            
+    except aiosqlite.Error as e:
+        print(f"Ошибка при поиске заметок: {e}")
+        return []
+
+
+
+"""напоминания"""
 
 async def get_notes_for_reminders(db_name: str):
     """Возвращает заметки, для которых, возможно, нужно отправить напоминание."""
