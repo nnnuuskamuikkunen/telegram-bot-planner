@@ -20,7 +20,7 @@ def book_timeslot(event_description, booking_time, input_email):
     # created automatically when the authorization flow completes for the first
     # time.
 
-    # здесь в репозитории нет нескольких вспомогательных файлов, без них код не будет полностью работать
+
     if os.path.exists('token.pickle'):
         with open('token.pickle', 'rb') as token:
             creds = pickle.load(token)
@@ -131,6 +131,6 @@ def check_email(email):
         return False
 
 if __name__ == '__main__':
-    input_email = 'bikshanovau@gmail.com'
+    input_email = '...@gmail.com' # я так понимаю, здесь нужно ввести адрес своего аккаунта
     booking_time = '14:00'
     result = book_timeslot('Dye', booking_time, input_email)
