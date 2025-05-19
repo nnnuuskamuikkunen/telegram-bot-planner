@@ -1,0 +1,212 @@
+class AddNoteStates(StatesGroup):
+    waiting_for_text = State()
+    waiting_for_hour = State()
+    waiting_for_minute = State()
+    waiting_for_date = State()
+
+def generate_calendar(year=None, month=None):
+    now = datetime.now()
+    if year is None:
+        year = now.year
+    if month is None:
+        month = now.month
+    
+    kb = InlineKeyboardBuilder()
+    
+    # Заголовок с навигацией
+    kb.row(
+        InlineKeyboardButton(text="◀", callback_data=f"prev_month_{year}_{month}"),
+        InlineKeyboardButton(text=f"{calendar.month_name[month]} {year}", callback_data="ignore"),
+        InlineKeyboardButton(text="▶", callback_data=f"next_month_{year}_{month}")
+    )
+    
+    # Дни недели
+    week_days = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+    kb.row(*[InlineKeyboardButton(text=day, callback_data="ignore") for day in week_days])
+    
+    # Дни месяца
+    month_days = calendar.monthcalendar(year, month)
+    today = now.date()
+    
+    for week in month_days:
+        row = []
+        for day in week:
+            if day == 0:
+                row.append(InlineKeyboardButton(text=" ", callback_data="ignore"))
+            else:
+                day_date = date(year, month, day)
+                if day_date < today:
+                    row.append(InlineKeyboardButton(text="✖", callback_data="ignore"))
+                else:
+                    row.append(InlineKeyboardButton(
+                        text=str(day),
+                        callback_data=f"select_day_{year}_{month}_{day}"
+                    ))
+        kb.row(*row)
+    
+    # Кнопки быстрого выбора
+    kb.row(
+        InlineKeyboardButton(text="Сегодня", callback_data=f"today_{year}_{month}"),
+        InlineKeyboardButton(text="Завтра", callback_data=f"tomorrow_{year}_{month}")
+    )
+    
+    return kb.as_markup()
+
+def generate_hours_keyboard():
+    kb = InlineKeyboardBuilder()
+    
+    # Часы (0-23)
+    for hour in range(0, 24, 6):
+        row = []
+        for h in range(hour, hour + 6):
+            row.append(InlineKeyboardButton(
+                text=f"{h:02d}",
+                callback_data=f"select_hour_{h}"
+            ))
+        kb.row(*row)
+    
+    return kb.as_markup()
+
+def generate_minutes_keyboard():
+    kb = InlineKeyboardBuilder()
+    
+    # Минуты (с шагом 5 минут)
+    for minute in range(0, 60, 15):
+        row = []
+        for m in range(minute, minute + 15, 5):
+            row.append(InlineKeyboardButton(
+                text=f"{m:02d}",
+                callback_data=f"select_minute_{m}"
+            ))
+        kb.row(*row)
+    
+    return kb.as_markup()
+
+@router.callback_query(F.data == "add_note")
+async def add_note_handler(callback: types.CallbackQuery, state: FSMContext):
+    """Начинает процесс добавления заметки"""
+    await state.set_state(AddNoteStates.waiting_for_text)
+    await callback.message.edit_text(
+        "Введите текст заметки:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Отмена", callback_data="back_to_main")]
+        ])
+    )
+    await callback.answer()
+
+@router.message(AddNoteStates.waiting_for_text)
+async def process_note_text(message: types.Message, state: FSMContext):
+    """Обрабатывает текст заметки и запрашивает часы"""
+    await state.update_data(note_text=message.text)
+    await state.set_state(AddNoteStates.waiting_for_hour)
+    await message.answer(
+        "🕒 Выберите час:",
+        reply_markup=generate_hours_keyboard()
+    )
+
+@router.callback_query(F.data.startswith("select_hour_"), AddNoteStates.waiting_for_hour)
+async def process_hour_selection(callback: types.CallbackQuery, state: FSMContext):
+    """Обрабатывает выбор часа"""
+    hour = int(callback.data.split("_")[2])
+    await state.update_data(selected_hour=hour)
+    await state.set_state(AddNoteStates.waiting_for_minute)
+    await callback.message.edit_text(
+        "🕒 Выберите минуты:",
+        reply_markup=generate_minutes_keyboard()
+    )
+    await callback.answer()
+
+@router.callback_query(F.data.startswith("select_minute_"), AddNoteStates.waiting_for_minute)
+async def process_minute_selection(callback: types.CallbackQuery, state: FSMContext):
+    """Обрабатывает выбор минут"""
+    minute = int(callback.data.split("_")[2])
+    await state.update_data(selected_minute=minute)
+    await state.set_state(AddNoteStates.waiting_for_date)
+    await callback.message.edit_text(
+        "📅 Выберите дату:",
+        reply_markup=generate_calendar()
+    )
+    await callback.answer()
+
+@router.callback_query(F.data.startswith(("prev_month_", "next_month_", "select_day_", "today_", "tomorrow_")), AddNoteStates.waiting_for_date)
+async def process_calendar_selection(callback: types.CallbackQuery, state: FSMContext):
+    """Обрабатывает выбор даты из календаря"""
+    data = callback.data.split("_")
+    
+    if data[0] == "select":
+        # Выбран день
+        year, month, day = int(data[2]), int(data[3]), int(data[4])
+        selected_date = date(year, month, day)
+        user_data = await state.get_data()
+        
+        # Сохраняем заметку в БД
+        await add_note(
+            DATABASE_NAME,
+            callback.from_user.id,
+            user_data["note_text"],
+            selected_date.strftime("%Y-%m-%d"),
+            f"{user_data['selected_hour']:02d}:{user_data['selected_minute']:02d}"
+        )
+        
+        # Показываем результат
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Посмотреть все заметки", callback_data="list_notes")],
+            [InlineKeyboardButton(text="Добавить еще", callback_data="add_note")],
+            [InlineKeyboardButton(text="В главное меню", callback_data="back_to_main")]
+        ])
+        
+        await callback.message.edit_text(
+            f"Заметка добавлена:\n<b>{selected_date.strftime('%Y-%m-%d')} {user_data['selected_hour']:02d}:{user_data['selected_minute']:02d}</b>\n{user_data['note_text']}",
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
+        await state.clear()
+    elif data[0] in ["today", "tomorrow"]:
+        # Сегодня или завтра
+        if data[0] == "today":
+            selected_date = datetime.now().date()
+        else:
+            selected_date = datetime.now().date() + timedelta(days=1)
+        
+        user_data = await state.get_data()
+        
+        # Сохраняем заметку в БД
+        await add_note(
+            DATABASE_NAME,
+            callback.from_user.id,
+            user_data["note_text"],
+            selected_date.strftime("%Y-%m-%d"),
+            f"{user_data['selected_hour']:02d}:{user_data['selected_minute']:02d}"
+        )
+        
+        # Показываем результат
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Посмотреть все заметки", callback_data="list_notes")],
+            [InlineKeyboardButton(text="Добавить еще", callback_data="add_note")],
+            [InlineKeyboardButton(text="В главное меню", callback_data="back_to_main")]
+        ])
+        
+        await callback.message.edit_text(
+            f"Заметка добавлена:\n<b>{selected_date.strftime('%Y-%m-%d')} {user_data['selected_hour']:02d}:{user_data['selected_minute']:02d}</b>\n{user_data['note_text']}",
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
+        await state.clear()
+    elif data[0] == "prev":
+        # Переход к предыдущему месяцу
+        year, month = int(data[2]), int(data[3])
+        month -= 1
+        if month < 1:
+            month = 12
+            year -= 1
+        await callback.message.edit_reply_markup(reply_markup=generate_calendar(year, month))
+    elif data[0] == "next":
+        # Переход к следующему месяцу
+        year, month = int(data[2]), int(data[3])
+        month += 1
+        if month > 12:
+            month = 1
+            year += 1
+        await callback.message.edit_reply_markup(reply_markup=generate_calendar(year, month))
+    
+    await callback.answer()
