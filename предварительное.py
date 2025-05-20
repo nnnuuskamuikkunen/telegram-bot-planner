@@ -28,7 +28,7 @@ class Task(Base):
     is_notified = Column(Integer, default=0)  # 0 - не уведомлено, 1 - уведомлено
 
 # Инициализация бота и планировщика
-bot = Bot(token="7916408010:AAEdFMaxbw4J8qXWALNuC9TBgZlBuzTlx0o")
+bot = Bot(token=TOKEN)
 dp = Dispatcher()
 scheduler = AsyncIOScheduler(timezone=pytz.UTC)
 
