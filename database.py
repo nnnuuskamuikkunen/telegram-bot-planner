@@ -107,6 +107,46 @@ async def get_notes_by_date(db_name: str, user_id: int, search_date: str) -> lis
         return []
 
 
+async def get_upcoming_notes(db_name: str, user_id: int, limit: int = 10) -> list[dict]:
+    """Возвращает ближайшие заметки пользователя, отсортированные по дате и времени.
+
+    Args:
+        db_name: Имя файла базы данных
+        user_id: ID пользователя
+        limit: Количество возвращаемых заметок
+
+    Returns:
+        Список словарей с заметками (пустой список, если ничего не найдено)
+    """
+    try:
+        async with aiosqlite.connect(db_name) as db:
+            # Получаем текущую дату и время
+            now = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+            # Ищем заметки с датой/временем больше или равным текущему
+            cursor = await db.execute(
+                """SELECT id, note_text, note_date, note_time 
+                   FROM notes 
+                   WHERE user_id = ? AND datetime(note_date || ' ' || note_time) >= datetime(?)
+                   ORDER BY datetime(note_date || ' ' || note_time)
+                   LIMIT ?""",
+                (user_id, now, limit))
+
+            notes = []
+            async for row in cursor:
+                notes.append({
+                    "id": row[0],
+                    "note_text": row[1],
+                    "note_date": row[2],
+                    "note_time": row[3]
+                })
+
+            await cursor.close()
+            return notes
+
+    except aiosqlite.Error as e:
+        print(f"Ошибка при поиске ближайших заметок: {e}")
+        return []
 
 """напоминания"""
 
