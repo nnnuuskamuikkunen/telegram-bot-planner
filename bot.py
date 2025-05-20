@@ -8,6 +8,7 @@ from aiogram.filters import CommandStart, Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from database import init_db, add_note, get_user_notes, delete_note, get_notes_for_reminders, mark_reminder_sent, get_note_by_id
+from database import get_upcoming_notes, get_notes_by_date
 from config import BOT_TOKEN, DATABASE_NAME # Импортируем из config.py
 
 # Включаем логирование
@@ -23,15 +24,18 @@ dp.include_router(router)
 
 """хендлеры команд"""
 
+
 @router.message(CommandStart())
 async def command_start_handler(message: types.Message):
     """Обработчик команды /start с кнопками для управления заметками"""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Добавить заметку", callback_data="add_note")],
         [InlineKeyboardButton(text="Мои заметки", callback_data="list_notes")],
+        [InlineKeyboardButton(text="Ближайшие 10 заметок", callback_data="show_upcoming")],
+        [InlineKeyboardButton(text="Поиск по дате", callback_data="show_by_date")],
         [InlineKeyboardButton(text="Помощь", callback_data="show_help")]
     ])
-    
+
     await message.answer(
         "Бот для управления заметками с напоминаниями\n\n"
         "Выберите действие:",
@@ -59,6 +63,8 @@ async def back_to_main_handler(callback: types.CallbackQuery):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Добавить заметку", callback_data="add_note")],
         [InlineKeyboardButton(text="Мои заметки", callback_data="list_notes")],
+        [InlineKeyboardButton(text="Ближайшие 10 заметок", callback_data="show_upcoming")],
+        [InlineKeyboardButton(text="Поиск по дате", callback_data="show_by_date")],
         [InlineKeyboardButton(text="Помощь", callback_data="show_help")]
     ])
     await callback.message.edit_text("главное меню", reply_markup=keyboard)
@@ -84,7 +90,7 @@ async def add_note_handler(callback: types.CallbackQuery):
 
 NOTE_FORMAT_PATTERN = re.compile(r'^(\d{2}:\d{2}),\s*(\d{4}-\d{2}-\d{2}),\s*(.+)$')
 
-@router.message(F.text)
+@router.message(F.text.regexp(r'^(\d{2}:\d{2}),\s*(\d{4}-\d{2}-\d{2}),\s*(.+)$'))
 async def handle_note_input(message: types.Message):
     """Обрабатывает ввод заметки после нажатия кнопки добавления"""
     # Проверяем, что пользователь начал процесс добавления заметки
@@ -215,6 +221,86 @@ async def view_note_handler(callback: types.CallbackQuery):
     await callback.answer()
 
 
+@router.callback_query(F.data == "show_upcoming")
+async def show_upcoming_notes_handler(callback: types.CallbackQuery):
+    """Показывает ближайшие 10 заметок"""
+    user_id = callback.from_user.id
+    notes = await get_upcoming_notes(DATABASE_NAME, user_id)
+
+    if not notes:
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Добавить заметку", callback_data="add_note")],
+            [InlineKeyboardButton(text="В главное меню", callback_data="back_to_main")]
+        ])
+        await callback.message.edit_text(
+            "У вас нет предстоящих заметок",
+            reply_markup=keyboard
+        )
+        await callback.answer()
+        return
+
+    message_text = "Ваши ближайшие заметки:\n\n"
+    for note in notes:
+        message_text += f"📅 {note['note_date']} ⏰ {note['note_time']}\n{note['note_text']}\n\n"
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Посмотреть все заметки", callback_data="list_notes")],
+        [InlineKeyboardButton(text="В главное меню", callback_data="back_to_main")]
+    ])
+
+    await callback.message.edit_text(
+        message_text,
+        reply_markup=keyboard
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "show_by_date")
+async def ask_date_for_notes_handler(callback: types.CallbackQuery):
+    """Запрашивает дату для поиска заметок"""
+    await callback.message.edit_text(
+        "Введите дату в формате ГГГГ-ММ-ДД для поиска заметок:\n\n"
+        "Пример: <code>2023-12-31</code>",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Отмена", callback_data="back_to_main")]
+        ]),
+        parse_mode="HTML"
+    )
+    await callback.answer()
+
+
+@router.message(F.text.regexp(r'^\d{4}-\d{2}-\d{2}$'))
+async def handle_date_search(message: types.Message):
+    """Обрабатывает поиск заметок по дате"""
+    search_date = message.text.strip()
+    user_id = message.from_user.id
+    notes = await get_notes_by_date(DATABASE_NAME, user_id, search_date)
+
+    if not notes:
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Попробовать другую дату", callback_data="show_by_date")],
+            [InlineKeyboardButton(text="В главное меню", callback_data="back_to_main")]
+        ])
+        await message.answer(
+            f"На {search_date} заметок не найдено",
+            reply_markup=keyboard
+        )
+        return
+
+    message_text = f"Заметки на {search_date}:\n\n"
+    for note in notes:
+        message_text += f"⏰ {note['note_time']} - {note['note_text']}\n"
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Посмотреть все заметки", callback_data="list_notes")],
+        [InlineKeyboardButton(text="Искать другую дату", callback_data="show_by_date")],
+        [InlineKeyboardButton(text="В главное меню", callback_data="back_to_main")]
+    ])
+
+    await message.answer(
+        message_text,
+        reply_markup=keyboard
+    )
 
 """напоминания"""
 
