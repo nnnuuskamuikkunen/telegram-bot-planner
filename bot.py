@@ -133,7 +133,6 @@ async def command_start_handler(message: types.Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Добавить заметку", callback_data="add_note")],
         [InlineKeyboardButton(text="Мои заметки", callback_data="list_notes")],
-        [InlineKeyboardButton(text="Ближайшие 10 заметок", callback_data="show_upcoming")],
         [InlineKeyboardButton(text="Поиск по категории", callback_data="show_by_type")],
         [InlineKeyboardButton(text="Поиск по дате", callback_data="show_by_date")],
         [InlineKeyboardButton(text="Помощь", callback_data="show_help")]
@@ -168,7 +167,6 @@ async def back_to_main_handler(callback: types.CallbackQuery):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Добавить заметку", callback_data="add_note")],
         [InlineKeyboardButton(text="Мои заметки", callback_data="list_notes")],
-        [InlineKeyboardButton(text="Ближайшие 10 заметок", callback_data="show_upcoming")],
         [InlineKeyboardButton(text="Поиск по дате", callback_data="show_by_date")],
         [InlineKeyboardButton(text="Поиск по категории", callback_data="show_by_type")],
         [InlineKeyboardButton(text="Помощь", callback_data="show_help")]
@@ -177,13 +175,16 @@ async def back_to_main_handler(callback: types.CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(F.data == "list_notes")
+@router.callback_query(F.data.startswith("list_notes"))
 async def list_notes_handler(callback: types.CallbackQuery):
-    """Показывает список заметок с кнопками управления"""
+    """Показывает список заметок с пагинацией по 10 штук"""
     user_id = callback.from_user.id
-    notes = await get_user_notes(DATABASE_NAME, user_id)
+    page = int(callback.data.split("_")[2]) if callback.data != "list_notes" else 0
 
-    if not notes:
+    # Получаем все заметки пользователя
+    all_notes = await get_user_notes(DATABASE_NAME, user_id)
+
+    if not all_notes:
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="Добавить заметку", callback_data="add_note")],
             [InlineKeyboardButton(text="В главное меню", callback_data="back_to_main")]
@@ -195,8 +196,12 @@ async def list_notes_handler(callback: types.CallbackQuery):
         await callback.answer()
         return
 
+    # Разбиваем на страницы по 10 заметок
+    total_pages = (len(all_notes) + 9) // 10
+    notes_page = all_notes[page * 10: (page + 1) * 10]
+
     keyboard_buttons = []
-    for note in notes:
+    for note in notes_page:
         note_text_short = note['note_text'][:25] + "..." if len(note['note_text']) > 25 else note['note_text']
         keyboard_buttons.append([
             InlineKeyboardButton(
@@ -204,24 +209,29 @@ async def list_notes_handler(callback: types.CallbackQuery):
                 callback_data=f"view_{note['id']}"
             )
         ])
-        """keyboard_buttons.append([
-            InlineKeyboardButton(
-                text="Редактировать",
-                callback_data=f"edit_{note['id']}"
-            ),
-            InlineKeyboardButton(
-                text="Удалить",
-                callback_data=f"delete_{note['id']}"
-            )
-        ])"""
 
+    # Добавляем кнопки пагинации
+    pagination_buttons = []
+    if page > 0:
+        pagination_buttons.append(
+            InlineKeyboardButton(text="⬅️ Назад", callback_data=f"list_notes_{page - 1}")
+        )
+    if page < total_pages - 1:
+        pagination_buttons.append(
+            InlineKeyboardButton(text="Вперед ➡️", callback_data=f"list_notes_{page + 1}")
+        )
+
+    if pagination_buttons:
+        keyboard_buttons.append(pagination_buttons)
+
+    # Добавляем основные кнопки
     keyboard_buttons.append([
-        InlineKeyboardButton(text="Добавить новую заметку", callback_data="add_note"),
-        InlineKeyboardButton(text="В главное меню", callback_data="back_to_main")
+        InlineKeyboardButton(text="➕ Добавить новую заметку", callback_data="add_note"),
+        InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_main")
     ])
 
     await callback.message.edit_text(
-        "Ваши заметки:",
+        f"Ваши заметки (страница {page + 1} из {total_pages}):",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
     )
     await callback.answer()
@@ -268,39 +278,6 @@ async def view_note_handler(callback: types.CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(F.data == "show_upcoming")
-async def show_upcoming_notes_handler(callback: types.CallbackQuery):
-    """Показывает ближайшие 10 заметок"""
-    user_id = callback.from_user.id
-    notes = await get_upcoming_notes(DATABASE_NAME, user_id)
-
-    if not notes:
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Добавить заметку", callback_data="add_note")],
-            [InlineKeyboardButton(text="В главное меню", callback_data="back_to_main")]
-        ])
-        await callback.message.edit_text(
-            "У вас нет предстоящих заметок",
-            reply_markup=keyboard
-        )
-        await callback.answer()
-        return
-
-    message_text = "Ваши ближайшие заметки:\n\n"
-    for note in notes:
-        message_text += f"📅 {note['note_date']} ⏰ {note['note_time']}\n{note['note_text']}\n\n"
-
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Посмотреть все заметки", callback_data="list_notes")],
-        [InlineKeyboardButton(text="В главное меню", callback_data="back_to_main")]
-    ])
-
-    await callback.message.edit_text(
-        message_text,
-        reply_markup=keyboard
-    )
-    await callback.answer()
-
 @router.callback_query(F.data == "show_by_date")
 async def ask_date_for_notes_handler(callback: types.CallbackQuery, ):
     """Запрашивает дату для поиска заметок"""
@@ -314,6 +291,7 @@ async def ask_date_for_notes_handler(callback: types.CallbackQuery, ):
     )
     
     await callback.answer()
+
 
 @router.message(F.text.regexp(r'^\d{4}-\d{2}-\d{2}$'))
 async def handle_date_search(message: types.Message):
