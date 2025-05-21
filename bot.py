@@ -366,7 +366,7 @@ async def ask_type_for_notes_handler(callback: types.CallbackQuery, state: FSMCo
     await callback.answer()
 
 @router.message(AddNoteStates.type_input, F.text)
-async def handle_date_search(message: types.Message, state: FSMContext):
+async def handle_type_search(message: types.Message, state: FSMContext):
     """Обрабатывает поиск задач по категории"""
     search_type = message.text.strip().lower()
     user_id = message.from_user.id
