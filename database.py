@@ -74,9 +74,6 @@ async def get_note_by_id(db_name: str, note_id: int, user_id: int) -> dict | Non
         return None
     
 
-
-"""новое"""
-
 async def get_notes_by_date(db_name: str, user_id: int, search_date: str) -> list[dict]:
     """
     Ищет заметки пользователя по указанной дате
@@ -130,7 +127,7 @@ async def get_notes_by_type(db_name: str, user_id: int, search_type: str) -> lis
                 """SELECT id, note_text, note_date, note_time 
                    FROM notes 
                    WHERE user_id = ? AND note_type = ?
-                   ORDER BY note_date""",
+                   ORDER BY note_date, note_type""",
                 (user_id, search_type))
             
             notes = []
@@ -191,6 +188,11 @@ async def get_upcoming_notes(db_name: str, user_id: int, limit: int = 10) -> lis
         print(f"Ошибка при поиске ближайших заметок: {e}")
         return []
 
+
+
+
+
+
 """напоминания"""
 
 async def get_notes_for_reminders(db_name: str):
@@ -199,7 +201,7 @@ async def get_notes_for_reminders(db_name: str):
         db.row_factory = aiosqlite.Row
         cursor = await db.cursor()
         # Выбираем заметки, для которых еще не отправлены оба напоминания
-        await cursor.execute('SELECT id, user_id, note_text, note_type, note_date, note_time, reminder_24h_sent, reminder_1h_sent FROM notes WHERE reminder_24h_sent = 0 OR reminder_1h_sent = 0')
+        await cursor.execute('SELECT id, user_id, note_text, note_type, note_date, note_time, task_complete, reminder_24h_sent, reminder_1h_sent FROM notes WHERE reminder_24h_sent = 0 OR reminder_1h_sent = 0')
         notes = await cursor.fetchall()
         return notes
 
@@ -209,3 +211,32 @@ async def mark_reminder_sent(db_name: str, note_id: int, reminder_type: str):
     async with aiosqlite.connect(db_name) as db:
         await db.execute(f'UPDATE notes SET {column_name} = 1 WHERE id = ?', (note_id,))
         await db.commit()
+
+
+
+"""редактирование и отметка выполненное"""
+
+async def edit_notes(db_name: str, user_id: int, note_id: int, new_text: str):
+    async with aiosqlite.connect(db_name) as db:
+        await db.execute(
+            "UPDATE notes SET note_text = ? WHERE id = ? AND user_id = ?",
+            (new_text, note_id, user_id)
+        )
+        await db.commit()
+    print(f"Заметка для пользователя {user_id} изменена.")
+
+async def save_as_complete(db_name: str, user_id: int, note_id: int, new_text: str):
+    async with aiosqlite.connect(db_name) as db:
+        await db.execute(
+            "UPDATE notes SET note_text = ? WHERE id = ? AND user_id = ?",
+            (new_text, note_id, user_id)
+        )
+        await db.commit()
+        await db.execute(
+            "UPDATE notes SET task_complete = 1 WHERE id = ? AND user_id = ?",
+            (note_id, user_id)
+        )
+        print(f"Заметка для пользователя {user_id} отмечена как выполненная.")
+
+
+
