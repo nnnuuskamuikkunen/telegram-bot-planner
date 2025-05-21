@@ -301,6 +301,54 @@ async def show_upcoming_notes_handler(callback: types.CallbackQuery):
     )
     await callback.answer()
 
+@router.callback_query(F.data == "show_by_date")
+async def ask_date_for_notes_handler(callback: types.CallbackQuery, ):
+    """Запрашивает дату для поиска заметок"""
+    await callback.message.edit_text(
+        "Введите дату в формате ГГГГ-ММ-ДД для поиска заметок:\n\n"
+        "Пример: <code>2023-12-31</code>",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Отмена", callback_data="back_to_main")]
+        ]),
+        parse_mode="HTML"
+    )
+    
+    await callback.answer()
+
+@router.message(F.text.regexp(r'^\d{4}-\d{2}-\d{2}$'))
+async def handle_date_search(message: types.Message):
+    """Обрабатывает поиск заметок по дате"""
+    search_date = message.text.strip()
+    user_id = message.from_user.id
+    notes = await get_notes_by_date(DATABASE_NAME, user_id, search_date)
+
+    if not notes:
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Попробовать другую дату", callback_data="show_by_date")],
+            [InlineKeyboardButton(text="В главное меню", callback_data="back_to_main")]
+        ])
+        await message.answer(
+            f"На {search_date} заметок не найдено",
+            reply_markup=keyboard
+        )
+        return
+
+    message_text = f"Заметки на {search_date}:\n\n"
+    for note in notes:
+        message_text += f"⏰ {note['note_time']} - {note['note_text']}\n"
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Посмотреть все заметки", callback_data="list_notes")],
+        [InlineKeyboardButton(text="Искать другую дату", callback_data="show_by_date")],
+        [InlineKeyboardButton(text="В главное меню", callback_data="back_to_main")]
+    ])
+
+    await message.answer(
+        message_text,
+        reply_markup=keyboard
+    )
+
+
 
 """категории"""
 
@@ -350,6 +398,8 @@ async def handle_date_search(message: types.Message, state: FSMContext):
         reply_markup=keyboard
     )
     await state.clear()
+
+
 
 
 
