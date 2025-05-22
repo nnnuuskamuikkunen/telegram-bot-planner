@@ -54,7 +54,7 @@ async def ask_type_for_notes_handler(
         ),
         parse_mode="HTML",
     )
-    await state.set_state(AddNoteStates.type_input)
+    await state.set_state(AddNoteStates.type_input.strip())
     await callback.answer()
 
 
@@ -202,7 +202,7 @@ async def handle_date_search(callback: types.CallbackQuery, search_date: date):
 
     message_text = f"Заметки на {search_date.strftime('%d-%m-%Y')}:\n\n"
     for note in notes:
-        message_text += f"⏰ {note['note_time']} - {note['note_text']}\n"
+        message_text += f"{note['note_time']} - {note['note_text']} в категории \"{note['note_type']}\"\n"
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -231,7 +231,7 @@ async def handle_date_search(callback: types.CallbackQuery, search_date: date):
 async def synchronize(callback: types.CallbackQuery, state: FSMContext):
     await state.update_data(note_id=int(callback.data.split("_")[1]))
     await callback.message.edit_text(
-        "Введите гугл почту:",
+        "Введите вашу почту с доменом @gmail.com:",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
                 [
