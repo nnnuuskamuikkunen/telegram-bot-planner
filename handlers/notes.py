@@ -39,11 +39,11 @@ async def add_note_handler(callback: types.CallbackQuery, state: FSMContext):
 
 
 @router.message(AddNoteStates.waiting_for_text)
-async def process_note_text(message: types.Message, state: FSMContext):
+async def process_note_type(message: types.Message, state: FSMContext):
     await state.update_data(note_text=message.text)
     await state.set_state(AddNoteStates.waiting_for_type)
     await message.answer(
-        "Выберите категорию:",
+        "Введите категорию:",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
                 [
@@ -61,7 +61,7 @@ async def process_note_type(message: types.Message, state: FSMContext):
     await state.update_data(note_type=message.text)
     await state.set_state(AddNoteStates.waiting_for_hour)
     await message.answer(
-        "🕒 Выберите час:", reply_markup=generate_hours_keyboard()
+        "Выберите час:", reply_markup=generate_hours_keyboard()
     )
 
 
@@ -75,7 +75,7 @@ async def process_hour_selection(
     await state.update_data(selected_hour=hour)
     await state.set_state(AddNoteStates.waiting_for_minute)
     await callback.message.edit_text(
-        "🕒 Выберите минуты:", reply_markup=generate_minutes_keyboard()
+        "Выберите минуты:", reply_markup=generate_minutes_keyboard()
     )
     await callback.answer()
 
@@ -90,7 +90,7 @@ async def process_minute_selection(
     await state.update_data(selected_minute=minute)
     await state.set_state(AddNoteStates.waiting_for_date)
     await callback.message.edit_text(
-        "📅 Выберите дату:", reply_markup=generate_calendar()
+        "Выберите дату:", reply_markup=generate_calendar()
     )
     await callback.answer()
 
@@ -187,7 +187,7 @@ async def process_calendar_selection(
         )
 
         await callback.message.edit_text(
-            f"Заметка добавлена:\n<b>{selected_date.strftime('%d-%m-%Y')} {user_data['selected_hour']:02d}:{user_data['selected_minute']:02d}</b>\n{user_data['note_text']}, {user_data['note_type']}",
+            f"Заметка добавлена:\n<b>{selected_date.strftime('%d-%m-%Y')} {user_data['selected_hour']:02d}:{user_data['selected_minute']:02d}</b>\n{user_data['note_text']}, категория \"{user_data['note_type']}\"",
             reply_markup=keyboard,
             parse_mode="HTML",
         )
@@ -286,10 +286,10 @@ async def list_notes_handler(callback: types.CallbackQuery):
     keyboard_buttons.append(
         [
             InlineKeyboardButton(
-                text="➕ Добавить новую заметку", callback_data="add_note"
+                text="Добавить новую заметку", callback_data="add_note"
             ),
             InlineKeyboardButton(
-                text="🏠 В главное меню", callback_data="back_to_main"
+                text="В главное меню", callback_data="back_to_main"
             ),
         ]
     )
@@ -315,7 +315,7 @@ async def view_note_handler(callback: types.CallbackQuery):
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Синхронизировать с гугл календарем",
+                    text="Синхронизировать с гугл-календарем",
                     callback_data=f"synchronize_{note_id}",
                 )
             ],
@@ -344,7 +344,7 @@ async def view_note_handler(callback: types.CallbackQuery):
     )
 
     await callback.message.edit_text(
-        f"Заметка от {note['note_date']} {note['note_time']}:\n\n"
+        f"Заметка от {note['note_date']} {note['note_time']} в категории \"{user_data['note_type']}\":\n\n"
         f"{note['note_text']}",
         reply_markup=keyboard,
     )
