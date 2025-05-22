@@ -260,7 +260,7 @@ async def list_notes_handler(callback: types.CallbackQuery):
         keyboard_buttons.append(
             [
                 InlineKeyboardButton(
-                    text=f"{note['note_date']}, {note['note_time']} - {note_text_short}",
+                    text=f"{note['note_date']}, {note['note_time']} - {note_text_short}, категория: {note['note_type']}",
                     callback_data=f"view_{note['id']}",
                 )
             ]
@@ -344,7 +344,7 @@ async def view_note_handler(callback: types.CallbackQuery):
     )
 
     await callback.message.edit_text(
-        f"Заметка от {note['note_date']} {note['note_time']} в категории \"{user_data['note_type']}\":\n\n"
+        f"Заметка от {note['note_date']} {note['note_time']} в категории \"{note['note_type']}\":\n\n"
         f"{note['note_text']}",
         reply_markup=keyboard,
     )
