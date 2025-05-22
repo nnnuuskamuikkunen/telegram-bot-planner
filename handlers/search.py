@@ -12,6 +12,7 @@ router = Router()
 
 @router.callback_query(F.data == "show_notes")
 async def show_notes_handler(callback: types.CallbackQuery):
+    """Обрабатывает кнопку 'Показать заметки'"""
     await callback.message.edit_text(
         "Поиск заметок:",
         reply_markup=InlineKeyboardMarkup(
@@ -41,6 +42,7 @@ async def show_notes_handler(callback: types.CallbackQuery):
 async def ask_type_for_notes_handler(
     callback: types.CallbackQuery, state: FSMContext
 ):
+    """Запрашивает категорию для поиска задач"""
     await callback.message.edit_text(
         "Введите категорию задач:",
         reply_markup=InlineKeyboardMarkup(
@@ -60,6 +62,7 @@ async def ask_type_for_notes_handler(
 
 @router.message(AddNoteStates.type_input, F.text)
 async def handle_type_search(message: types.Message, state: FSMContext):
+    """Обрабатывает поиск задач по категории"""
     search_type = message.text.strip()
     user_id = message.from_user.id
     notes = await get_notes_by_type(DATABASE_NAME, user_id, search_type)
@@ -119,6 +122,7 @@ async def handle_type_search(message: types.Message, state: FSMContext):
 async def ask_date_for_notes_handler(
     callback: types.CallbackQuery, state: FSMContext
 ):
+    """Запрашивает дату для поиска заметок через календарь"""
     await state.set_state(SearchStates.waiting_for_search_date)
     await callback.message.edit_text(
         "Выберите дату для поиска заметок:", reply_markup=generate_calendar()
@@ -135,6 +139,7 @@ async def ask_date_for_notes_handler(
 async def process_search_date_selection(
     callback: types.CallbackQuery, state: FSMContext
 ):
+    """Обрабатывает выбор даты из календаря для поиска"""
     data = callback.data.split("_")
 
     if data[0] == "select":
@@ -173,6 +178,7 @@ async def process_search_date_selection(
 
 
 async def handle_date_search(callback: types.CallbackQuery, search_date: date):
+    """Обрабатывает поиск заметок по дате"""
     user_id = callback.from_user.id
     notes = await get_notes_by_date(
         DATABASE_NAME, user_id, search_date.strftime("%d-%m-%Y")
@@ -229,6 +235,7 @@ async def handle_date_search(callback: types.CallbackQuery, search_date: date):
 
 @router.callback_query(F.data.startswith("synchronize_"))
 async def synchronize(callback: types.CallbackQuery, state: FSMContext):
+    """Запрашивает ввод почты"""
     await state.update_data(note_id=int(callback.data.split("_")[1]))
     await callback.message.edit_text(
         "Введите вашу почту с доменом @gmail.com:",
@@ -252,6 +259,7 @@ async def synchronize(callback: types.CallbackQuery, state: FSMContext):
     AddNoteStates.synchronize,
 )
 async def process_note_text(message: types.Message, state: FSMContext):
+    """Обрабатывает почту и запрашивает категорию"""
     mail = message.text.strip().lower()
     user_data = await state.get_data()
     note = await get_note_by_id(
