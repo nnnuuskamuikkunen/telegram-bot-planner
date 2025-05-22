@@ -429,13 +429,13 @@ async def process_edit(message: types.Message, state: FSMContext):
 @router.callback_query(F.data.startswith("complete_"))
 async def save_as_complete(callback: types.CallbackQuery):
      """Обработка нажатия кнопки 'Отметить как выполненное'"""
-    note_id = int(callback.data.split("_")[1])
-    note_data = await get_note_by_id(
+     note_id = int(callback.data.split("_")[1])
+     note_data = await get_note_by_id(
         DATABASE_NAME, note_id, callback.from_user.id
     )
-    new_text = f"{note_data['note_text']} ✅"
-    await edit_notes(DATABASE_NAME, callback.from_user.id, note_id, new_text)
-    keyboard = InlineKeyboardMarkup(
+     new_text = f"{note_data['note_text']} ✅"
+     await edit_notes(DATABASE_NAME, callback.from_user.id, note_id, new_text)
+     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
@@ -450,7 +450,7 @@ async def save_as_complete(callback: types.CallbackQuery):
         ]
     )
 
-    await callback.message.edit_text(
+     await callback.message.edit_text(
         f"Заметка отмечена как выполненная!",
         reply_markup=keyboard,
         parse_mode="HTML",
