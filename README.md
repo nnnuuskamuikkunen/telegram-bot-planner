@@ -14,4 +14,3 @@ scheduler.py -- Создание события в календаре через
 Источник кода
 [https://pythonist.ru/sozdanie-telegram-bota-dlya-sinhronizaczii-s-kalendarem-google/]
 
-Напишите, пожалуйста, мне в чат, если не работает/ничего непонятно, все объясню!
