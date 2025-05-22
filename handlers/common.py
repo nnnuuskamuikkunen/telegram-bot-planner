@@ -8,6 +8,7 @@ router = Router()
 
 @router.message(CommandStart())
 async def command_start_handler(message: types.Message):
+    """Обработчик команды /start с кнопками для управления заметками"""
     await message.answer(
         "<b>Добро пожаловать в наш бот</b>!\n\nОн поможет вам управляться с организацией дел легко и просто: вам нужно записать задачу в бот и выбрать время, когда она должна быть выполнена. Бот напомнит о ней за <u>24</u> и <u>1</u> час до дедлайна. \n\n"
         "Для начала работы с заметками <b>выберите действие</b>:",
@@ -17,6 +18,7 @@ async def command_start_handler(message: types.Message):
 
 @router.callback_query(F.data == "show_help")
 async def show_help_handler(callback: types.CallbackQuery):
+    """Показывает справку"""
     await callback.message.edit_text(
         "<u>Справка по работе с ботом:</u>\n\n"
         "• Для создания новой заметки нажмите <b>Добавить заметку</b>\n"
@@ -39,6 +41,7 @@ async def show_help_handler(callback: types.CallbackQuery):
 
 @router.callback_query(F.data == "back_to_main")
 async def back_to_main_handler(callback: types.CallbackQuery):
+    """Возвращает в главное меню"""
     await callback.message.edit_text(
         "<b>Добро пожаловать в наш бот</b>!\n\nОн поможет вам управляться с организацией дел легко и просто: вам нужно записать задачу в бот и выбрать время, когда она должна быть выполнена. Бот напомнит о ней за <u>24</u> и <u>1</u> час до дедлайна. \n\n"
         "Для начала работы с заметками <b>выберите действие</b>:", reply_markup=main_menu_kb(), parse_mode="HTML"
