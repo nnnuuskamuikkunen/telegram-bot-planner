@@ -36,7 +36,7 @@ async def get_user_notes(db_name: str, user_id: int):
     async with aiosqlite.connect(db_name) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.cursor()
-        await cursor.execute('SELECT id, note_text, note_type, note_date, note_time FROM notes WHERE user_id = ? ORDER BY note_date, note_time', (user_id,))
+        await cursor.execute('SELECT id, note_text, note_date, note_time, note_type FROM notes WHERE user_id = ? ORDER BY note_date, note_time', (user_id,))
         notes = await cursor.fetchall()
         return notes
 
