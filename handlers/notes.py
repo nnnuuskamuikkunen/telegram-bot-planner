@@ -226,11 +226,10 @@ async def process_calendar_selection(
 async def list_notes_handler(callback: types.CallbackQuery):
     """Показывает список заметок с пагинацией по 10 штук"""
     user_id = callback.from_user.id
-    page = (
-        int(callback.data.split("_")[2])
-        if callback.data != "list_notes"
-        else 0
-    )
+    if callback.data != "list_notes":
+        page = int(callback.data.split("_")[2])
+    else:
+        page = 0
     all_notes = await get_user_notes(DATABASE_NAME, user_id)
 
     if not all_notes:
@@ -352,7 +351,7 @@ async def view_note_handler(callback: types.CallbackQuery):
     )
 
     await callback.message.edit_text(
-        f"Заметка от {note['note_date']} {note['note_time']} в категории \"{note['note_type']}\":\n\n"
+        f"Заметка от {note['note_type']} {note['note_time']} в категории \"{note['note_date']}\":\n\n"
         f"{note['note_text']}",
         reply_markup=keyboard,
     )
@@ -368,10 +367,20 @@ async def delete_note_handler(callback: types.CallbackQuery):
     deleted = await delete_note(DATABASE_NAME, note_id, user_id)
 
     if deleted:
-        await callback.answer("Заметка удалена")
-        await list_notes_handler(callback)
+        await callback.message.edit_text("Заметка удалена",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+            [InlineKeyboardButton(text="Посмотреть все заметки", callback_data="list_notes")],
+            [InlineKeyboardButton(text="В главное меню", callback_data="back_to_main")]
+        ]))
     else:
-        await callback.answer("Не удалось удалить заметку", show_alert=True)
+        await callback.message.edit_text("Не удалось удалить заметку",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+            [InlineKeyboardButton(text="Посмотреть все заметки", callback_data="list_notes")],
+            [InlineKeyboardButton(text="В главное меню", callback_data="back_to_main")]
+        ]))
+        await callback.answer()
 
 
 @router.callback_query(F.data.startswith("edit_"))
