@@ -22,6 +22,7 @@ router = Router()
 
 @router.callback_query(F.data == "add_note")
 async def add_note_handler(callback: types.CallbackQuery, state: FSMContext):
+    """Начинает процесс добавления заметки"""
     await state.set_state(AddNoteStates.waiting_for_text)
     await callback.message.edit_text(
         "Введите текст заметки:",
@@ -40,6 +41,7 @@ async def add_note_handler(callback: types.CallbackQuery, state: FSMContext):
 
 @router.message(AddNoteStates.waiting_for_text)
 async def process_note_type(message: types.Message, state: FSMContext):
+    """Обрабатывает текст заметки и запрашивает категорию"""
     await state.update_data(note_text=message.text)
     await state.set_state(AddNoteStates.waiting_for_type)
     await message.answer(
@@ -58,6 +60,7 @@ async def process_note_type(message: types.Message, state: FSMContext):
 
 @router.message(AddNoteStates.waiting_for_type)
 async def process_note_type(message: types.Message, state: FSMContext):
+    """Обрабатывает категорию заметки и запрашивает часы"""
     await state.update_data(note_type=message.text)
     await state.set_state(AddNoteStates.waiting_for_hour)
     await message.answer(
@@ -71,6 +74,7 @@ async def process_note_type(message: types.Message, state: FSMContext):
 async def process_hour_selection(
     callback: types.CallbackQuery, state: FSMContext
 ):
+    """Обрабатывает выбор часа"""
     hour = int(callback.data.split("_")[2])
     await state.update_data(selected_hour=hour)
     await state.set_state(AddNoteStates.waiting_for_minute)
@@ -86,6 +90,7 @@ async def process_hour_selection(
 async def process_minute_selection(
     callback: types.CallbackQuery, state: FSMContext
 ):
+    """Обрабатывает выбор минут"""
     minute = int(callback.data.split("_")[2])
     await state.update_data(selected_minute=minute)
     await state.set_state(AddNoteStates.waiting_for_date)
@@ -104,6 +109,7 @@ async def process_minute_selection(
 async def process_calendar_selection(
     callback: types.CallbackQuery, state: FSMContext
 ):
+    """Обрабатывает выбор даты из календаря"""
     data = callback.data.split("_")
 
     if data[0] == "select":
@@ -218,6 +224,7 @@ async def process_calendar_selection(
 
 @router.callback_query(F.data.startswith("list_notes"))
 async def list_notes_handler(callback: types.CallbackQuery):
+    """Показывает список заметок с пагинацией по 10 штук"""
     user_id = callback.from_user.id
     page = (
         int(callback.data.split("_")[2])
@@ -303,6 +310,7 @@ async def list_notes_handler(callback: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("view_"))
 async def view_note_handler(callback: types.CallbackQuery):
+    """Показывает полный текст заметки"""
     note_id = int(callback.data.split("_")[1])
     user_id = callback.from_user.id
     note = await get_note_by_id(DATABASE_NAME, note_id, user_id)
@@ -353,6 +361,7 @@ async def view_note_handler(callback: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("delete_"))
 async def delete_note_handler(callback: types.CallbackQuery):
+    """Удаляет заметку"""
     note_id = int(callback.data.split("_")[1])
     user_id = callback.from_user.id
 
@@ -367,6 +376,7 @@ async def delete_note_handler(callback: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("edit_"))
 async def handle_edit_button(callback: types.CallbackQuery, state: FSMContext):
+    """Обработка нажатия кнопки 'Редактировать'"""
     await state.set_state(AddNoteStates.waiting_for_edit)
     await state.update_data(note_id=int(callback.data.split("_")[1]))
     await callback.message.edit_text(
@@ -386,6 +396,7 @@ async def handle_edit_button(callback: types.CallbackQuery, state: FSMContext):
 
 @router.message(AddNoteStates.waiting_for_edit)
 async def process_edit(message: types.Message, state: FSMContext):
+    """Обрабатывает текст заметки и сохраняет изменения"""
     await state.update_data(new_text=message.text)
     user_data = await state.get_data()
     await edit_notes(
@@ -417,6 +428,7 @@ async def process_edit(message: types.Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("complete_"))
 async def save_as_complete(callback: types.CallbackQuery):
+     """Обработка нажатия кнопки 'Отметить как выполненное'"""
     note_id = int(callback.data.split("_")[1])
     note_data = await get_note_by_id(
         DATABASE_NAME, note_id, callback.from_user.id
