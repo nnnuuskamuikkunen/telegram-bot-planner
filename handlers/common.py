@@ -9,19 +9,22 @@ router = Router()
 @router.message(CommandStart())
 async def command_start_handler(message: types.Message):
     await message.answer(
-        "Бот для управления заметками с напоминаниями\n\nВыберите действие:",
-        reply_markup=main_menu_kb(),
+        "<b>Добро пожаловать в наш бот</b>!\n\nОн поможет вам управляться с организацией дел легко и просто: вам нужно записать задачу в бот и выбрать время, когда она должна быть выполнена. Бот напомнит о ней за <u>24</u> и <u>1</u> час до дедлайна. \n\n"
+        "Для начала работы с заметками <b>выберите действие</b>:",
+        reply_markup=main_menu_kb(), parse_mode="HTML"
     )
 
 
 @router.callback_query(F.data == "show_help")
 async def show_help_handler(callback: types.CallbackQuery):
     await callback.message.edit_text(
-        "Справка по работе с ботом:\n\n"
-        "1. Для добавления заметки нажмите 'Добавить заметку'\n"
-        "2. Для просмотра списка заметок нажмите 'Мои заметки'\n"
-        "3. Удалять заметки можно прямо из списка\n\n"
-        "Бот автоматически напомнит о заметке в указанное время!",
+        "<u>Справка по работе с ботом:</u>\n\n"
+        "• Для создания новой заметки нажмите <b>Добавить заметку</b>\n"
+        "• Для просмотра заметок нажмите <b>Добавить заметки</b>\n"
+        "• С заметкой можно делать следующие действия:\n"
+        "Внести заметку в гугл-календарь можно с помощью кнопки <b>Синхронизировать с гугл-календарем</b>\n"
+        "Также заметку можно редактировать, удалить или отметить как выполненную\n"
+        "• Поиск заметок можно делать с помощью кнопок <b>Поиск по категории</b> и <b>Поиск по дате</b>",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
                 [
@@ -30,12 +33,13 @@ async def show_help_handler(callback: types.CallbackQuery):
                     )
                 ]
             ]
-        ),
+        ), parse_mode="HTML"
     )
 
 
 @router.callback_query(F.data == "back_to_main")
 async def back_to_main_handler(callback: types.CallbackQuery):
     await callback.message.edit_text(
-        "Главное меню", reply_markup=main_menu_kb()
+        "<b>Добро пожаловать в наш бот</b>!\n\nОн поможет вам управляться с организацией дел легко и просто: вам нужно записать задачу в бот и выбрать время, когда она должна быть выполнена. Бот напомнит о ней за <u>24</u> и <u>1</u> час до дедлайна. \n\n"
+        "Для начала работы с заметками <b>выберите действие</b>:", reply_markup=main_menu_kb(), parse_mode="HTML"
     )
