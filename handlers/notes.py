@@ -464,3 +464,12 @@ async def save_as_complete(callback: types.CallbackQuery):
         reply_markup=keyboard,
         parse_mode="HTML",
     )
+
+
+@router.message()  # Обрабатываем текстовые сообщения, которые не являются командами
+async def handle_note_input(message: types.Message):
+    """Обрабатывает входящие текстовые сообщения"""
+    await message.answer(
+        "Неверный формат ввода.\n"
+        "Следуйте инструкциям на кнопках или нажмите /start"
+    )
