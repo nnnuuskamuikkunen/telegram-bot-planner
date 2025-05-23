@@ -144,7 +144,7 @@ def book_timeslot(event_description, event_time, input_email):
 #         return False
 
 # if __name__ == '__main__':
-    # input_email = 'avstrpeg@gmail.com'
+    # input_email = 'example@gmail.com'
     # event_time = '2025-05-26 01:00'
     # result = book_timeslot('Dye', event_time, input_email)
 
