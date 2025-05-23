@@ -194,7 +194,7 @@ async def on_startup(dp):
 from aiogram import types
 
 async def cmd_book(message: types.Message):
-    # Пример команды: /book 14:00 dye bikshanovau@gmail.com
+    # Пример команды: /book 14:00 dye example@gmail.com
     try:
         _, time, description, email = message.text.split(maxsplit=3)
         await handle_booking(
