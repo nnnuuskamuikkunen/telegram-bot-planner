@@ -3,7 +3,7 @@ import datetime
 import json
 # import api_key
 # api_key=api_key.api['api_key']
-api_key='8059208448:AAFnzPAfwvrfehwl9JvP7JacTpVE3yGK6jc'
+api_key=''
 
 def run():
     url = "https://api.telegram.org/bot{}/getUpdates".format(api_key)
